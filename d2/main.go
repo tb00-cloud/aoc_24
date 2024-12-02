@@ -18,15 +18,12 @@ func fileScanner() *bufio.Scanner {
 }
 
 type report struct {
-	levels []int32
-	safe   bool
+	levels                []int32
+	outlierLevelPositions []int
+	safe                  bool
 }
 
-func remove(slice []int32, s int) []int32 {
-	return append(slice[:s], slice[s+1:]...)
-}
-
-func (r *report) eval() (int, bool) {
+func (r *report) eval(faultTolerance int) {
 
 	dir := ""
 
@@ -39,37 +36,42 @@ func (r *report) eval() (int, bool) {
 		// If current bigger than last
 		if lvl > r.levels[i-1] {
 			if dir == "decreasing" {
-				r.safe = false
-				return i, false
+				r.outlierLevelPositions = append(r.outlierLevelPositions, i)
+				continue
 			} else {
 				dir = "increasing"
 				if lvl-r.levels[i-1] < 1 || lvl-r.levels[i-1] > 3 {
-					r.safe = false
-					return i, false
+					r.outlierLevelPositions = append(r.outlierLevelPositions, i)
+					continue
 				}
 			}
 		}
 
 		if lvl < r.levels[i-1] {
 			if dir == "increasing" {
-				r.safe = false
-				return i, false
+				r.outlierLevelPositions = append(r.outlierLevelPositions, i)
+				continue
 			} else {
 				dir = "decreasing"
 				if r.levels[i-1]-lvl < 1 || r.levels[i-1]-lvl > 3 {
-					r.safe = false
-					return i, false
+					r.outlierLevelPositions = append(r.outlierLevelPositions, i)
+					continue
 				}
 			}
 		}
 
 		if lvl == r.levels[i-1] {
-			r.safe = false
-			return i, false
+			r.outlierLevelPositions = append(r.outlierLevelPositions, i)
+			continue
 		}
-
 	}
-	return 0, true
+
+	fmt.Printf("report outlier count: %v\n", r.outlierLevelPositions)
+
+	if len(r.outlierLevelPositions) > faultTolerance {
+		r.safe = false
+	}
+
 }
 
 func main() {
@@ -87,22 +89,26 @@ func main() {
 			}
 			report.levels = append(report.levels, int32(intVal))
 		}
-		breaker, safe := report.eval()
-		if !safe {
-			report.levels = remove(report.levels, breaker)
-			report.eval()
-		}
 		reports = append(reports, report)
 	}
 
-	safeReports := 0
+	p1SafeReports := 0
 	for _, report := range reports {
+		report.eval(0)
 		if report.safe {
-			safeReports++
+			p1SafeReports++
 		}
 	}
+	fmt.Printf("The answer to the puzzle part 1 is: %v\n", p1SafeReports)
 
-	fmt.Printf("The answer to the puzzle part 1 is: %v\n", safeReports)
-	// fmt.Printf("The answer to the puzzle part 2 is: %v\n", xx)
+	p2SafeReports := 0
+	for _, report := range reports {
+		report.outlierLevelPositions = []int{}
+		report.eval(1)
+		if report.safe {
+			p2SafeReports++
+		}
+	}
+	fmt.Printf("The answer to the puzzle part 2 is: %v\n", p2SafeReports)
 
 }
